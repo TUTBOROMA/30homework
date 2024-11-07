@@ -1,22 +1,27 @@
-﻿image: python:3.11
+image: python:3.11  # Используем образ Python 3.11
 
+# Определяем этапы CI
 stages:
   - lint
   - test
 
+# Перед выполнением джобов, устанавливаем зависимости
 before_script:
+  - python -m pip install --upgrade pip
   - pip install -r requirements.txt
   - pip install flake8 isort black mypy pytest
 
+# Джоба для запуска линтеров
 lint:
   stage: lint
   script:
-    - flake8 .
-    - isort --check-only .
-    - black --check .
-    - mypy .
+    - flake8 .  # Проверка стиля кода
+    - isort --check-only .  # Проверка порядка импортов
+    - black --check .  # Проверка форматирования
+    - mypy .  # Проверка типов
 
+# Джоба для запуска тестов
 test:
   stage: test
   script:
-    - pytest
+    - pytest  # Запуск тестов
