@@ -12,26 +12,35 @@ before_script:
 
 unittest:
     stage: test
+    tags:
+        - students
     script:
         - pytest test_main.py
 
 mypy:
     stage: test
+    tags:
+        - students
     script:
         - mypy .
 
 black:
     stage: test
+    tags:
+        - students
     script:
         - black --diff --check .
 
 isort:
     stage: test
+    tags:
+        - students
     script:
         - isort --check-only --diff --profile black .
 
 flake8:
     stage: test
+    tags:
+        - students
     script:
         - flake8 .
-
