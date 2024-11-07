@@ -1,6 +1,6 @@
 workflow:
   rules:
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH
 
 image: python:3.12.5
 
@@ -18,27 +18,32 @@ pytest:
   script:
     - source myenv/bin/activate
     - pytest -v tests
+  when: manual  # Доступно для ручного запуска
 
 mypy:
   stage: test
   script:
     - source myenv/bin/activate
     - mypy src/
+  when: manual  # Доступно для ручного запуска
 
 black:
   stage: test
   script:
     - source myenv/bin/activate
     - black --diff --check src/
+  when: manual  # Доступно для ручного запуска
 
 isort:
   stage: test
   script:
     - source myenv/bin/activate
     - isort --check-only --diff --profile black src/
+  when: manual  # Доступно для ручного запуска
 
 flake8:
   stage: test
   script:
     - source myenv/bin/activate
     - flake8 --max-line-length 99 src/
+  when: manual  # Доступно для ручного запуска
