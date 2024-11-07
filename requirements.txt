@@ -20,3 +20,6 @@ six==1.16.0
 SQLAlchemy==2.0.30
 typing_extensions==4.12.1
 Werkzeug==3.0.3
+black
+flake8
+isort
