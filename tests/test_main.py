@@ -1,116 +1,131 @@
-from typing import AsyncGenerator
+import asyncio
+from asyncio import AbstractEventLoop
+from random import randint
+from typing import AsyncGenerator, List, Dict, Iterator
 
 import pytest
-import pytest_asyncio
-from fastapi import FastAPI
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from httpx import ASGITransport, AsyncClient, Response
 
-from database import Base
-from main import app, get_db
-
-
-@pytest_asyncio.fixture()
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Start a test database session."""
-    test_db_url: str = "sqlite+aiosqlite:///./test_app.db"
-    engine = create_async_engine(test_db_url, echo=True)
-    Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    session = Session()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield session
-    await session.close()
+from .database_test import (
+    all_recipe_db_test,
+    get_recipe_id_db_test,
+    NEW_RECIPE,
+)
+from src.crud import delete_recipe_by_id_test
+from src.main import app
 
 
-@pytest.fixture()
-def test_app(db_session: AsyncSession):
-    """Create a test app with overridden dependencies."""
-    app.dependency_overrides[get_db] = lambda: db_session
-    yield app
-    app.dependency_overrides.clear()
+@pytest.mark.asyncio(scope="session")
+def event_loop() -> Iterator[AbstractEventLoop]:
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 
-@pytest_asyncio.fixture()
-async def client(test_app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
-    """Create an http client."""
-    async with AsyncClient(app=test_app, base_url="http://localhost:8000") as client:
-        yield client
+# client: TestClient = TestClient(app)
 
 
-recipe_in: dict = {
-    "title": "test_title",
-    "description": "test_description",
-    "ingredients": "test_ingredients",
-    "cooking_time": 1.1,
-}
-cur_prefix: int = 0
+@pytest.fixture(scope="session")
+async def ac() -> AsyncGenerator[AsyncClient, None]:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
 
 
-def _add_prefix():
-    """Функция добавляет префикс к полям self.test_detailed_recipe,
-    чтобы добавлять уникальные значение при тестировании
-    """
-    global cur_prefix
-    prefix: str = f"_{cur_prefix}"
-    recipe_in["title"] += prefix
-    recipe_in["description"] += prefix
-    recipe_in["ingredients"] += prefix
-    cur_prefix += 1
+async def test_get_recipes(ac: AsyncClient):
+    dishes: List[Dict[str, str | int]] = await all_recipe_db_test()
+    response: Response = await ac.get("/recipes")
 
-
-@pytest.mark.asyncio
-async def test_add_new_recipe_and_return_same_recipe(client):
-    """Unit тест. Проверяет, что при отправке корректной формы,
-    возвращает отправленный json, код 200"""
-    _add_prefix()
-    response = await client.post("/recipes", json=recipe_in)
     assert response.status_code == 200
-
-    response_json = response.json()
-    response_json.pop("recipe_id")
-    assert response_json == recipe_in
+    assert response.json() == dishes
 
 
-@pytest.mark.asyncio
-async def test_added_recipe_in_bd(client):
-    """Unit тест. Проверяет, что при отправке корректной формы,
-    рецепт сохраняется в бд"""
-    _add_prefix()
-    # Отправим рецепт в бд через POST
-    response_post = await client.post("/recipes", json=recipe_in)
-    response_post_json = response_post.json()
-    recipe_id: int = response_post_json.get("recipe_id")
+async def test_get_recipes_negative(ac: AsyncClient):
+    dishes: List[Dict[str, str | int]] = await all_recipe_db_test()
+    dishes[randint(1, len(dishes))]["cooking_time"] = 0
+    response: Response = await ac.get("/recipes")
 
-    # получим рецепт из бд через GET и id рецепта
-    response_get = await client.get(f"/recipes/{recipe_id}")
-    response_get_json = response_get.json()
-    assert response_post_json == response_get_json
+    assert response.status_code == 200
+    assert response.json() != dishes
 
 
-@pytest.mark.asyncio
-async def test_negative_post_invalid_form(client):
-    """Негативный unit тест. Проверка отправки невалидной формы"""
-    response = await client.post("/recipes", json={"smth": "smb"})
-    assert response.status_code == 422
+async def test_cooking_time_should_be_more_than_0_minutes(ac: AsyncClient):
+    response: Response = await ac.get("/recipes")
+    data: List[Dict[str, str | int]] = response.json()
+
+    assert response.status_code == 200
+    for d in data:
+        assert d["cooking_time"] > 0
 
 
-@pytest.mark.asyncio
-async def test_negative_recipe_not_found(client):
-    """Негативный unit тест.
-    Проверяет, что если запросить рецепт по id,
-    которого нет в бд, то вернет 404 код"""
-    response = await client.get("/recipes/1000")
+async def test_get_recipes_data_type_checking(ac: AsyncClient):
+    # dishes: List[Dict[str, str | int]] = await all_recipe_db_test()
+    response: Response = await ac.get("/recipes")
+
+    assert response.status_code == 200
+    assert response.json().__class__ is list
+
+
+async def test_get_recipe_by_id(ac: AsyncClient):
+    recipe_id: int = 2
+    recipe = await get_recipe_id_db_test(recipe_id)
+    response: Response = await ac.get(f"/recipes/{recipe_id}")
+
+    assert response.status_code == 200
+    assert response.json() == recipe
+
+
+async def test_get_recipe_by_id_negative(ac: AsyncClient):
+    recipe_id: int = 2
+    recipe = await get_recipe_id_db_test(recipe_id)
+    recipe["name"] = ""
+    response: Response = await ac.get(f"/recipes/{recipe_id}")
+
+    assert response.status_code == 200
+    assert response.json() != recipe
+
+
+async def test_get_recipe_by_non_existent_id(ac: AsyncClient):
+    dishes: List[Dict[str, str | int]] = await all_recipe_db_test()
+    max_id: int = max(d["id"] for d in dishes)
+    recipe_non_existent_id: int = max_id + randint(1, 10)
+    response = await ac.get(f"/recipes/{recipe_non_existent_id}")
+
     assert response.status_code == 404
+    assert response.json() == {
+        "detail": f"Recipe by {recipe_non_existent_id} not found!"
+    }
 
 
-@pytest.mark.asyncio
-async def test_get_all_recipes(client):
-    """Unit тест.
-    Проверяет, что endpoint GET /recipes работает
-    и возвращает 200 код"""
-    response = await client.get("/recipes")
+async def test_get_recipe_by_id__data_type_checking(ac: AsyncClient):
+    recipe_id: int = 2
+    response: Response = await ac.get(f"/recipes/{recipe_id}")
+
     assert response.status_code == 200
+    assert response.json().__class__ is dict
+
+
+async def test_new_creat_recipe_negative(ac: AsyncClient):
+    response = await ac.post("/recipes", json=NEW_RECIPE)
+    data = response.json()
+
+    assert response.status_code == 201
+    assert response.json() != NEW_RECIPE
+    await delete_recipe_by_id_test(data["id"])
+
+
+async def test_new_creat_recipe(ac: AsyncClient):
+    response = await ac.post("/recipes", json=NEW_RECIPE)
+    data = response.json()
+    NEW_RECIPE["id"] = data["id"]
+
+    assert response.status_code == 201
+    assert response.json() == NEW_RECIPE
+    await delete_recipe_by_id_test(data["id"])
+
+
+if __name__ == "__main__":
+    import pytest
+
+    pytest.main([__file__, "-vxs"])
+# Run pytest -vs
