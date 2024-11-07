@@ -1,50 +1,22 @@
+﻿image: python:3.11
+
 stages:
   - lint
   - test
 
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-# Установка зависимостей
 before_script:
-  - python -m venv venv
-  - source venv/bin/activate
-  - pip install --upgrade pip
   - pip install -r requirements.txt
   - pip install flake8 isort black mypy pytest
 
-# Линтинг с помощью flake8
-flake8:
+lint:
   stage: lint
   script:
-      - echo "Starting flake8 linting..."
-      - flake8 app/ tests/
+    - flake8 .
+    - isort --check-only .
+    - black --check .
+    - mypy .
 
-
-# Форматирование кода с помощью black
-black:
-  stage: lint
-  script:
-    - black --check app/ tests/
-
-# Сортировка импортов с помощью isort
-isort:
-  stage: lint
-  script:
-    - isort --check-only app/ tests/
-
-# Проверка типов с помощью mypy
-mypy:
-  stage: lint
-  script:
-    - mypy app/ tests/
-
-# Запуск тестов 
 test:
   stage: test
   script:
-    - pytest tests/
-  artifacts:
-    paths:
-      - tests/reports
-    when: always
+    - pytest
