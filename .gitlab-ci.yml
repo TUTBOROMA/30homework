@@ -17,7 +17,9 @@ before_script:
 flake8:
   stage: lint
   script:
-    - flake8 app/ tests/
+      - echo "Starting flake8 linting..."
+      - flake8 app/ tests/
+
 
 # Форматирование кода с помощью black
 black:
@@ -37,7 +39,7 @@ mypy:
   script:
     - mypy app/ tests/
 
-# Запуск тестов
+# Запуск тестов 
 test:
   stage: test
   script:
