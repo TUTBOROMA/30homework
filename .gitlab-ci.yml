@@ -5,13 +5,14 @@ stages:
   - lint
   - test
 
-# Общие настройки перед каждым этапом
-before_script:
-  - python -m pip install --upgrade pip
-  - pip install -r requirements.txt  # Устанавливаем зависимости из вашего проекта
-  - pip install flake8 isort black mypy pytest factory-boy  # Устанавливаем линтеры и тестовые библиотеки
+# Установка зависимостей перед выполнением заданий
+default:
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt  # Установка зависимостей проекта
+    - pip install flake8 isort black mypy pytest factory-boy  # Установка линтеров и тестовых библиотек
 
-# Этап запуска линтеров
+# Задание для запуска линтеров
 lint:
   stage: lint
   script:
@@ -20,7 +21,7 @@ lint:
     - black --check app/  # Проверка форматирования
     - mypy app/  # Проверка аннотаций типов
 
-# Этап запуска тестов
+# Задание для запуска тестов
 test:
   stage: test
   script:
