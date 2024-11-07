@@ -1,28 +1,27 @@
-﻿# Используем официальный образ Python
-image: python:3.11
+﻿image: python:3.11
 
-# Определяем этапы
+# Определение этапов
 stages:
   - lint
   - test
 
-# Общие настройки для всех джобов
+# Общие настройки перед каждым этапом
 before_script:
   - python -m pip install --upgrade pip
-  - pip install -r requirements.txt  # Устанавливаем все зависимости проекта
-  - pip install flake8 isort black mypy pytest factory-boy  # Устанавливаем инструменты для проверки и тестирования
+  - pip install -r requirements.txt  # Устанавливаем зависимости из вашего проекта
+  - pip install flake8 isort black mypy pytest factory-boy  # Устанавливаем линтеры и тестовые библиотеки
 
-# Джоба для запуска линтеров
+# Этап запуска линтеров
 lint:
   stage: lint
   script:
-    - flake8 app/  # Проверка стиля кода
+    - flake8 app/  # Проверка кода на ошибки стиля
     - isort --check-only app/  # Проверка порядка импортов
-    - black --check app/  # Проверка форматирования кода
+    - black --check app/  # Проверка форматирования
     - mypy app/  # Проверка аннотаций типов
 
-# Джоба для запуска тестов
+# Этап запуска тестов
 test:
   stage: test
   script:
-    - pytest app/tests/  # Запуск всех тестов в папке app/tests/
+    - pytest app/tests/  # Запуск тестов
