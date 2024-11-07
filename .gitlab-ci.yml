@@ -1,28 +1,37 @@
-﻿image: python:3.11
+workflow:
+    rules:
+        - if: $CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == 'push'
 
-# Определение этапов
+image: python:3.12
+
 stages:
-  - lint
-  - test
+    - test
 
-# Установка зависимостей перед выполнением заданий
-default:
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install -r requirements.txt  # Установка зависимостей проекта
-    - pip install flake8 isort black mypy pytest factory-boy  # Установка линтеров и тестовых библиотек
+before_script:
+    pip install -r requirements.txt
 
-# Задание для запуска линтеров
-lint:
-  stage: lint
-  script:
-    - flake8 app/  # Проверка кода на ошибки стиля
-    - isort --check-only app/  # Проверка порядка импортов
-    - black --check app/  # Проверка форматирования
-    - mypy app/  # Проверка аннотаций типов
+unittest:
+    stage: test
+    script:
+        - pytest test_main.py
 
-# Задание для запуска тестов
-test:
-  stage: test
-  script:
-    - pytest app/tests/  # Запуск тестов
+mypy:
+    stage: test
+    script:
+        - mypy .
+
+black:
+    stage: test
+    script:
+        - black --diff --check .
+
+isort:
+    stage: test
+    script:
+        - isort --check-only --diff --profile black .
+
+flake8:
+    stage: test
+    script:
+        - flake8 .
+
